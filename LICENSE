@@ -19,24 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This licence covers what is actually ours in this repository: the setup
-script, the tools, the analysis summaries and the documentation. It does NOT
-cover The Movies itself.
-
-The Movies and The Movies: Stunts & Effects are (c) 2005-2006 Lionhead
-Studios / Activision, and are not ours to license. Their executables, data,
-movies, music and art are not in this repository and are excluded by
-.gitignore.
-
-Two consequences worth being explicit about:
-
-  * You need your own copy of the game to use any of this. Setup.cmd copies
-    your install into game/; the pipeline reads it from there.
-
-  * Unpacked and lifted code is a derivative work of the binary it came from.
-    Anything this pipeline emits into work/ or src/recomp/gen/ carries whatever
-    licence the original carries, not this one. The MIT grant above stops at
-    our own work.

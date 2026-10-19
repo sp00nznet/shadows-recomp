@@ -15,6 +15,11 @@ lifted C is generated on your machine.
 This is part of the pcrecomp family and follows its shared house style
 (layout, CLI, harness, headless mode).
 
+> **Want to play it?** Download the installer from the
+> [latest release](https://github.com/sp00nznet/shadows-recomp/releases/latest)
+> (`Shadows-Recomp-Installer-windows-x64.exe`). It finds the game in your Steam
+> library and does everything else. See [The installer](#the-installer).
+
 ## Status
 
 **v0.1.0-alpha.1. The whole game lifts (2,806 functions, 0 errors), boots,
@@ -73,9 +78,11 @@ You need *Star Wars: Shadows of the Empire* from Steam, installed (Steam app
 ### The installer
 
 Download `Shadows-Recomp-Installer-windows-x64.exe` from the
-[releases](https://github.com/sp00nznet/shadows-recomp/releases) (or, between
-releases, the latest [installer run](https://github.com/sp00nznet/shadows-recomp/actions/workflows/installer.yml)'s
-artifacts) and run it. It finds the game in your Steam library, downloads this
+[latest release](https://github.com/sp00nznet/shadows-recomp/releases/latest)
+and run it. (For a build newer than the release, the latest
+[installer run](https://github.com/sp00nznet/shadows-recomp/actions/workflows/installer.yml)
+has the same files as artifacts; you need to be signed in to GitHub to
+download them.) It finds the game in your Steam library, downloads this
 repo and pcrecomp, runs the setup below with a progress bar, and leaves a Play
 button. It is [recomp-launcher](https://github.com/sp00nznet/recomp-launcher)
 with [`launcher/launcher.json`](launcher/launcher.json). It isn't signed:
@@ -167,6 +174,14 @@ The generated C lands in `src/recomp/gen/` and is never committed.
 
 ## License
 
-MIT for the code in this repository ([LICENSE](LICENSE)). *Star Wars: Shadows
-of the Empire* is © Lucasfilm Ltd.; none of its files, and nothing generated
-from them, is in this repository.
+MIT for the code in this repository ([LICENSE](LICENSE)): the host, the
+controls layer, the menu, the scripts and the documentation.
+
+*Star Wars: Shadows of the Empire* is © Lucasfilm Ltd. / LucasArts and is not
+ours to license. Its executables, data, movies, music and art are not in this
+repository and are excluded by `.gitignore`. You need your own copy of the
+game; setup copies your Steam install into `game\`.
+
+The unwrapped executable and the lifted C (`src/recomp/gen/`) are made from
+the game's own code. They carry the game's terms, not the MIT licence, which
+is why they are generated on your machine and never committed.
