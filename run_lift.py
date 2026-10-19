@@ -48,7 +48,12 @@ HOOKS = {}
 
 # Lines of C added after one lifted instruction (see apply_patches): the input
 # layer's hooks into the game's own control code. docs/controls.md.
-PATCHES = {}
+PATCHES = {
+    # sub_0044F270's call to sub_00491D70, which packs the game's pad: from
+    # here the frame's stick and buttons are final, and the controls layer
+    # (src/runtime/pad.c) adjusts them before anything reads them.
+    0x0044F45B: '{ extern void sote_pad_frame(void); sote_pad_frame(); } /* controls: run_lift.py PATCHES */',
+}
 
 # The Steam release's Shadows.exe (1997-12-12): its PE timestamp. Unwrapping
 # keeps it, so it names the build either way.
@@ -227,6 +232,14 @@ def main():
             f.write('    { 0x%08Xu, %s },\n' % (a, n))
         f.write('};\nconst uint32_t recomp_dispatch_count = %d;\n'
                 'const uint32_t sote_entry_va = 0x%08Xu;\n' % (len(entries), entry))
+        # Function starts proper: not an alias or split label inside another
+        # body. Only these may take --original --lifted's trap; a trap at a
+        # label breaks the original code that falls through it.
+        real = sorted(a for a in starts if a in chosen)
+        f.write('\nconst uint32_t sote_func_starts[] = {\n')
+        for i in range(0, len(real), 8):
+            f.write('    ' + ', '.join('0x%08Xu' % a for a in real[i:i + 8]) + ',\n')
+        f.write('};\nconst uint32_t sote_func_start_count = %d;\n' % len(real))
 
     lines = sum(sum(1 for _ in open(os.path.join(args.out, fn), encoding='utf-8', errors='replace'))
                 for fn in os.listdir(args.out))

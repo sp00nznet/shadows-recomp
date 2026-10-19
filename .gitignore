@@ -42,3 +42,7 @@ work/
 # OS
 Thumbs.db
 Desktop.ini
+
+# Made by Setup.cmd
+* (recomp).cmd
+setup.log

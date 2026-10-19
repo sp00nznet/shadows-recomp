@@ -21,15 +21,19 @@
 #include "native32.h"
 #include "recomp_trace.h"
 #include "display.h"
+#include "pad.h"
+#include "oracle.h"
 #include "recomp_target.h"   /* the binary this build runs: run_lift.py */
 
 extern const uint32_t sote_entry_va;    /* recomp_dispatch.c */
+extern const uint32_t sote_func_starts[], sote_func_start_count;
 
 #define SOTE_IMAGE_BASE 0x00400000u
 /* A NULL module is the process exe, which is the host; mean the guest. */
 #define GUEST_MODULE(h) ((h) ? (h) : SOTE_IMAGE_BASE)
 
 static DWORD g_watchdog_s;
+static int g_original;                 /* --original: the shipping machine code (oracle.c) */
 
 #define ARG(n) MEM32(g_esp + 4 + 4 * (n))
 static const char* gstr(uint32_t va) { return va ? (const char*)(uintptr_t)va : "(null)"; }
@@ -358,6 +362,7 @@ static LONG CALLBACK crash(EXCEPTION_POINTERS* ep) {
     static volatile LONG once;
     EXCEPTION_RECORD* r = ep->ExceptionRecord;
     if ((r->ExceptionCode & 0xF0000000u) != 0xC0000000u) return EXCEPTION_CONTINUE_SEARCH;
+    if (g_original) return EXCEPTION_CONTINUE_SEARCH;   /* its own SEH handles them; oracle.c logs */
     if (InterlockedExchange(&once, 1)) TerminateProcess(GetCurrentProcess(), 3);
     crash_emit("\n=== fault 0x%08lX at 0x%p, thread %lu ===\n", r->ExceptionCode,
                r->ExceptionAddress, GetCurrentThreadId());
@@ -383,17 +388,74 @@ static LONG CALLBACK crash(EXCEPTION_POINTERS* ep) {
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+/* SOTE_PROFILE=1: which lifted function is running, sampled every
+ * millisecond, the most frequent printed when the watchdog ends the run
+ * (Fallout Tactics' host has the same). */
+#define PROF_SLOTS 65536
+static struct { uint32_t va, n; } g_prof[PROF_SLOTS];
+static DWORD WINAPI profiler(LPVOID unused) {
+    (void)unused;
+    timeBeginPeriod(1);
+    for (;;) {
+        uint32_t va = g_cur_func;
+        for (uint32_t h = (va * 2654435761u) >> 16, k = 0; va && k < PROF_SLOTS; k++, h = (h + 1) & (PROF_SLOTS - 1))
+            if (g_prof[h].va == va || !g_prof[h].va) { g_prof[h].va = va; g_prof[h].n++; break; }
+        Sleep(1);
+    }
+}
+static int prof_cmp(const void* a, const void* b) {
+    return (int)((const uint32_t*)b)[1] - (int)((const uint32_t*)a)[1];
+}
+static void profile_report(void) {
+    static uint32_t top[PROF_SLOTS][2];
+    int n = 0;
+    uint64_t total = 0;
+    for (int i = 0; i < PROF_SLOTS; i++)
+        if (g_prof[i].va) top[n][0] = g_prof[i].va, top[n][1] = g_prof[i].n, total += g_prof[i].n, n++;
+    if (!n) return;
+    qsort(top, n, sizeof top[0], prof_cmp);
+    for (int i = 0; i < n && i < 30; i++)
+        fprintf(stderr, "[profile] sub_%08X %6u  %4.1f%%\n", top[i][0], top[i][1], 100.0 * top[i][1] / total);
+}
+
 static DWORD WINAPI watchdog(LPVOID unused) {
     (void)unused;
     Sleep(g_watchdog_s * 1000);
     fprintf(stderr, "\n[watchdog] %lu s: in sub_%08X, last native call %s, %u indirect calls, %ld frames\n",
             g_watchdog_s, g_cur_func, g_cur_import, g_icall_count, display_frames());
+    if (display_flat_percent() >= 0)
+        fprintf(stderr, "[watchdog] 3D vertices on the middle row: %ld%%\n", display_flat_percent());
     native32_dump_icalls(8);
+    profile_report();
     display_record_close();
     recomp_trace_flush();
     fflush(stderr);
     TerminateProcess(GetCurrentProcess(), 4);
     return 0;
+}
+
+/* --lifted VA|LO-HI[,...] (with --original): these lifted entries run lifted
+ * inside the original code, each with every function it calls. A range takes
+ * every lifted entry in it, so halving ranges bisects a lift bug down to the
+ * function that has it. */
+static uint32_t g_lift[4096];
+static int g_nlift;
+
+static void lifted_arg(const char* s) {
+    char buf[1024], *p;
+    strncpy(buf, s, sizeof buf - 1), buf[sizeof buf - 1] = 0;
+    for (p = strtok(buf, ","); p; p = strtok(NULL, ",")) {
+        char* dash = strchr(p, '-');
+        if (*p == '!') {               /* !VA: stays original (one that crosses into a shim's callbacks) */
+            uint32_t va = strtoul(p + 1, NULL, 0);
+            for (int k = 0; k < g_nlift; k++)
+                if (g_lift[k] == va) g_lift[k--] = g_lift[--g_nlift];
+            continue;
+        }
+        uint32_t lo = strtoul(p, NULL, 0), hi = dash ? strtoul(dash + 1, NULL, 0) : lo + 1;
+        for (uint32_t k = 0; k < sote_func_start_count && g_nlift < 4096; k++)
+            if (sote_func_starts[k] >= lo && sote_func_starts[k] < hi) g_lift[g_nlift++] = sote_func_starts[k];
+    }
 }
 
 static uint32_t pe_field(const char* path, int which) {   /* 0: timestamp, 1: entry RVA */
@@ -429,10 +491,13 @@ int main(int argc, char** argv) {
     }
     for (int i = 1; i < argc; i++) {
         int n = recomp_trace_arg(argc, argv, i);
+        if (!n) n = pad_arg(argc, argv, i);
         if (n) { i += n - 1; continue; }
         if (!strcmp(argv[i], "--run")) run = 1;
         else if (!strcmp(argv[i], "--headless")) g_headless = g_autoplay = 1;
         else if (!strcmp(argv[i], "--play")) g_autoplay = 1;
+        else if (!strcmp(argv[i], "--original")) g_original = 1;
+        else if (!strcmp(argv[i], "--lifted") && i + 1 < argc) lifted_arg(argv[++i]);
         else if (!strcmp(argv[i], "--record") && i + 1 < argc) rec = argv[++i];
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) rec_frames = strtol(argv[++i], NULL, 0);
         else if (!strcmp(argv[i], "--mute")) CloseHandle(CreateThread(NULL, 0, mute_thread, NULL, 0, NULL));
@@ -441,7 +506,8 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--native-trace")) native32_trace_native = 1;
         else if (!strcmp(argv[i], "--callbacks")) native32_trace_callbacks = 1;
         else {
-            printf("usage: sote [--run] [--play] [--headless [--record out.mp4] [--frames N]] [--mute] [--game DIR]\n"
+            printf("usage: sote [--run] [--original] [--play] [--headless [--record out.mp4] [--frames N]] [--mute] [--game DIR]\n"
+                   "            [--pad MASK@T[+D]] [--stick X,Y@T[+D]] [--pad-log]\n"
                    "            [--watchdog S] [--native-trace] [--callbacks] [-- game args]\n");
             recomp_trace_help();
             return argv[i][1] == 'h' || argv[i][2] == 'h' ? 0 : 1;
@@ -489,6 +555,15 @@ int main(int argc, char** argv) {
             shims[nshims++] = g_headless_shims[k];
     }
     for (size_t k = 0; k < sizeof g_shims / sizeof g_shims[0]; k++) shims[nshims++] = g_shims[k];
+    if (g_original) {
+        /* The shipping machine code under the same host and shims
+         * (oracle.c): the reference a lifted run is compared against. The
+         * controls layer is a patch in the lift, so it is not in this run. */
+        if (!SetCurrentDirectoryA(sdata)) { fprintf(stderr, "cannot enter %s\n", sdata); return 1; }
+        if (g_watchdog_s) CloseHandle(CreateThread(NULL, 0, watchdog, NULL, 0, NULL));
+        oracle_lift(g_lift, g_nlift);
+        return oracle_run(exe_full, SOTE_IMAGE_BASE, shims, nshims, NULL, 0);
+    }
     if (native32_bind(SOTE_IMAGE_BASE, shims, nshims)) return 1;
 
     if (!run) {
@@ -498,6 +573,8 @@ int main(int argc, char** argv) {
     /* The game opens its data relative to Sdata\. */
     if (!SetCurrentDirectoryA(sdata)) { fprintf(stderr, "cannot enter %s\n", sdata); return 1; }
     if (g_watchdog_s) CloseHandle(CreateThread(NULL, 0, watchdog, NULL, 0, NULL));
+    pad_init();
+    if (getenv("SOTE_PROFILE")) CloseHandle(CreateThread(NULL, 0, profiler, NULL, 0, NULL));
     printf("  entering 0x%08X\n\n", sote_entry_va);
     fflush(stdout);
     native32_call_guest(sote_entry_va, 0, NULL);

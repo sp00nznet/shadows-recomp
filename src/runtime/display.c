@@ -16,6 +16,7 @@
 #include <windows.h>
 #include <d3d9.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "display.h"
@@ -102,18 +103,138 @@ static void record(IDirect3DDevice9* dev) {
         g_ffmpeg = _popen(cmd, "wb");
         fprintf(stderr, "[record] %ux%u -> %s\n", g_rec_w, g_rec_h, g_record);
     }
-    static uint32_t row[4096];
-    for (UINT y = 0; g_ffmpeg && y < g_rec_h && g_rec_w <= 4096; y++) {
+    /* Written as many times as 30 fps owes since the start, so the video's
+     * clock is the run's: "at 22 s" in a script is 0:22 in the file, even
+     * when reading the frame back is slower than the game. */
+    static DWORD start;
+    static uint32_t frame[4096 * 2160];
+    if (!start) start = now;
+    long owed = (long)((now - start) / 33.333) + 1 - g_recorded;
+    for (UINT y = 0; y < g_rec_h && g_rec_w <= 4096; y++) {
         const uint32_t* src = (const uint32_t*)((const uint8_t*)lr.pBits + (size_t)(y * d.Height / g_rec_h) * lr.Pitch);
-        for (UINT x = 0; x < g_rec_w; x++) row[x] = src[x * d.Width / g_rec_w];
-        fwrite(row, 4, g_rec_w, g_ffmpeg);
+        for (UINT x = 0; x < g_rec_w; x++) frame[y * g_rec_w + x] = src[x * d.Width / g_rec_w];
     }
     IDirect3DSurface9_UnlockRect(g_sys);
-    if (g_ffmpeg && ++g_recorded == g_record_frames) {
+    for (; g_ffmpeg && owed > 0; owed--) {
+        fwrite(frame, 4, (size_t)g_rec_w * g_rec_h, g_ffmpeg);
+        if (++g_recorded == g_record_frames) break;
+    }
+    if (g_ffmpeg && g_recorded == g_record_frames) {
         display_record_close();
         fflush(stderr);
         TerminateProcess(GetCurrentProcess(), 0);
     }
+}
+
+/* SOTE_DRAW_LOG=1: draw calls per second and a sample vertex, to compare a
+ * lifted run with --original (docs/bringup.md). */
+typedef HRESULT (WINAPI *dpup_t)(IDirect3DDevice9*, D3DPRIMITIVETYPE, UINT, const void*, UINT);
+typedef HRESULT (WINAPI *dipup_t)(IDirect3DDevice9*, D3DPRIMITIVETYPE, UINT, UINT, UINT, const void*,
+                                  D3DFORMAT, const void*, UINT);
+static dpup_t g_real_dpup;
+static dipup_t g_real_dipup;
+static volatile LONG g_draws, g_prims;
+
+/* SOTE_WATCH_SY=1: a hardware write watch on a drawn vertex's y, set once
+ * the game is drawing 3D; the next write to it names the lifted function that
+ * computes it (how the projection bug was found, docs/bringup.md). */
+extern uint32_t g_cur_func;
+static volatile uint32_t g_watch;
+#define WATCH_SET 0xE0000001u
+
+static LONG CALLBACK watch_veh(EXCEPTION_POINTERS* ep) {
+    CONTEXT* c = ep->ContextRecord;
+    if (ep->ExceptionRecord->ExceptionCode == WATCH_SET) {
+        c->Dr0 = g_watch;
+        c->Dr7 = 1 | (1u << 16) | (3u << 18);     /* L0, write, 4 bytes */
+        return EXCEPTION_CONTINUE_EXECUTION;
+    }
+    if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_SINGLE_STEP && (c->Dr6 & 1)) {
+        static int hits;
+        fprintf(stderr, "[watch] y at 0x%08X = %g written in lifted sub_%08X\n", g_watch,
+                *(volatile float*)(uintptr_t)g_watch, g_cur_func);
+        c->Dr6 = 0;
+        if (++hits >= 6) c->Dr7 = 0;
+        return EXCEPTION_CONTINUE_EXECUTION;
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+/* SOTE_DUMP=ADDR:N[,ADDR:N...]: every 2 s of 3D drawing, print N floats
+ * from each guest ADDR, four to a line, skipping a block that is all zero or
+ * an identity matrix: the same dump from a lifted run and an --original one
+ * shows which stage a value first goes wrong in. */
+static void dump_once(void) {
+    static DWORD next;
+    char spec[512], *p;
+    const char* e = getenv("SOTE_DUMP");
+    if (!e || (LONG)(GetTickCount() - next) < 0) return;
+    next = GetTickCount() + 2000;
+    strncpy(spec, e, sizeof spec - 1), spec[sizeof spec - 1] = 0;
+    for (p = strtok(spec, ","); p; p = strtok(NULL, ",")) {
+        uint32_t a = strtoul(p, NULL, 0);
+        int n = strchr(p, ':') ? atoi(strchr(p, ':') + 1) : 16, dull = 1;
+        const float* b = (const float*)(uintptr_t)a;
+        for (int i = 0; i < n; i++)
+            if (b[i] != (n == 16 && i % 5 == 0 ? 1.0f : 0.0f)) dull = 0;
+        if (dull) continue;
+        for (int i = 0; i < n; i += 4) {
+            const float* f = (const float*)(uintptr_t)(a + 4 * i);
+            fprintf(stderr, "[dump] %08X: %12g %12g %12g %12g\n", a + 4 * i, f[0], f[1], f[2], f[3]);
+        }
+    }
+}
+
+static void sample(const void* v, UINT stride) {
+    static DWORD next;
+    const float* f = (const float*)v;
+    static long n3d;
+    if (f[3] != 1.0f && ++n3d > 5000) dump_once();    /* into the attract demo */
+    if (!g_watch && f[3] != 1.0f && getenv("SOTE_WATCH_SY")) {
+        /* SOTE_WATCH_SY=ADDR: watch *(ADDR) + 4 instead (a guest vertex list) */
+        uint32_t at = strtoul(getenv("SOTE_WATCH_SY"), NULL, 0);
+        g_watch = at > 1 ? *(volatile uint32_t*)(uintptr_t)at + 4 : (uint32_t)(uintptr_t)(f + 1);
+        AddVectoredExceptionHandler(1, watch_veh);
+        RaiseException(WATCH_SET, 0, 0, NULL);
+        fprintf(stderr, "[watch] watching y at 0x%08X\n", g_watch);
+    }
+    if ((LONG)(GetTickCount() - next) < 0) return;
+    next = GetTickCount() + 1000;
+    fprintf(stderr, "[draw] frame %ld: %ld draws, %ld prims/s; vertex (%g, %g, %g, %g) stride %u\n",
+            g_frames, g_draws, g_prims, f[0], f[1], f[2], f[3], stride);
+    g_draws = g_prims = 0;
+}
+
+/* 3D vertices drawn, and how many sat on the screen's middle row: the flat-y
+ * lift bug's signature (docs/bringup.md). */
+static volatile LONG g_v3d, g_vflat;
+
+long display_flat_percent(void) { return g_v3d ? (long)(100.0 * g_vflat / g_v3d) : -1; }
+
+static void count_flat(const void* v, UINT stride, UINT nverts) {
+    for (UINT i = 0; i < nverts && i < 64; i++) {
+        const float* f = (const float*)((const uint8_t*)v + i * stride);
+        if (f[3] == 1.0f) continue;
+        InterlockedIncrement(&g_v3d);
+        if (f[1] >= 239.5f && f[1] <= 241.0f) InterlockedIncrement(&g_vflat);
+    }
+}
+
+static HRESULT WINAPI hl_DrawPrimitiveUP(IDirect3DDevice9* dev, D3DPRIMITIVETYPE t, UINT n, const void* v, UINT stride) {
+    count_flat(v, stride, t == D3DPT_TRIANGLELIST ? n * 3 : n + 2);
+    InterlockedIncrement(&g_draws);
+    InterlockedExchangeAdd(&g_prims, (LONG)n);
+    sample(v, stride);
+    return g_real_dpup(dev, t, n, v, stride);
+}
+
+static HRESULT WINAPI hl_DrawIndexedPrimitiveUP(IDirect3DDevice9* dev, D3DPRIMITIVETYPE t, UINT lo, UINT nv,
+                                                UINT n, const void* idx, D3DFORMAT f, const void* v, UINT stride) {
+    count_flat(v, stride, nv);
+    InterlockedIncrement(&g_draws);
+    InterlockedExchangeAdd(&g_prims, (LONG)n);
+    sample(v, stride);
+    return g_real_dipup(dev, t, lo, nv, n, idx, f, v, stride);
 }
 
 static HRESULT WINAPI hl_Present(IDirect3DDevice9* dev, const RECT* s, const RECT* d, HWND w, const RGNDATA* r) {
@@ -139,6 +260,10 @@ static HRESULT WINAPI hl_CreateDevice(IDirect3D9* d3d, UINT ad, D3DDEVTYPE t, HW
         void** vt = *(void***)*out;
         patch(&vt[16], (void*)hl_Reset, (void**)&g_real_reset);
         patch(&vt[17], (void*)hl_Present, (void**)&g_real_present);
+        if (getenv("SOTE_DRAW_LOG")) {
+            patch(&vt[83], (void*)hl_DrawPrimitiveUP, (void**)&g_real_dpup);
+            patch(&vt[84], (void*)hl_DrawIndexedPrimitiveUP, (void**)&g_real_dipup);
+        }
     }
     return hr;
 }
