@@ -33,6 +33,7 @@ game/
 # Generated from the binary, never committed: the lifted C, the catalog,
 # the toolkit worktree and every other analysis of Shadows.exe.
 src/recomp/gen/
+src/recomp/gen.new/
 work/
 
 # Recordings and logs of runs

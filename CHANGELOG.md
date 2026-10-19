@@ -6,6 +6,17 @@ versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- The F10 menu (`src/runtime/menu.c`, `docs/menu.md`): level restart, next,
+  previous and jump to any level; invincibility, infinite lives, 50 lives,
+  all weapons and items, Kill Dash, Teleport, the debug display and the
+  game's own debug menu (both stick clicks on a pad); field of view,
+  anisotropic filtering, vsync, resolution; borderless
+  fullscreen, a window (F11, Alt+Enter) or exclusive fullscreen. Kept in
+  `sote.ini`. `--cmd NAME@T` runs the same commands in headless runs.
+- Widescreen: the camera's aspect follows the screen (Hor+), and cutscenes
+  are centred above 1280x960 (they stopped at 2x in the top left).
+- `run_lift.py` rewrites only the generated files that changed, so a rebuild
+  after a small patch compiles one file.
 - The Steam `Shadows.exe` lifts whole with pcrecomp: 2,806 functions, 0 errors,
   about 2 million lines of C, after SteamStub 3.x is removed statically (needs
   pcrecomp `feat/steamstub-v3`). `docs/RECON.md`.

@@ -15,9 +15,10 @@ lifted body instead.
 |---|---|---|
 | Guest identity | `host.c` | `GetModuleHandleA(NULL)`, `GetModuleFileNameA` and `GetCommandLineA` describe `Sdata\Shadows.exe`, not the host. |
 | Registry | `host.c` | The game's HKLM key is read from HKCU (no administrator, a Steam install's keys untouched). |
-| DirectInput | `host.c` | `DirectInputCreateA` gets the host's module: the guest's image is not one the loader knows. |
+| DirectInput | `host.c` | `DirectInputCreateA` gets the host's module: the guest's image is not one the loader knows. On a real screen its devices are non-exclusive, so the F10 menu has a cursor. |
 | Launcher | `host.c` | Every dialog procedure is wrapped: `--play` presses Play, headless dialogs are invisible. |
-| Headless display | `display.c` | Steam's `Sdata\ddraw.dll` renders on Direct3D 9. Its `Direct3DCreate9` import is hooked so devices are windowed on the invisible game window, and each Present is counted and, with `--record`, piped to ffmpeg. |
+| Display | `display.c` | Steam's `Sdata\ddraw.dll` renders on Direct3D 9. Its `Direct3DCreate9` import is hooked: devices are windowed (borderless or a window, scaled with bars), with the menu's anisotropic filtering and vsync (no MSAA: the wrapper draws into lockable render targets, `docs/menu.md`). Headless, they are on the invisible game window, and each Present is counted and, with `--record`, piped to ffmpeg. |
+| F10 menu | `menu.c` | Levels, cheats, graphics, display; through the game's own debug menu and three lift hooks (`docs/menu.md`). The window class procedure (`host.c`) hands it F10, F11 and Alt+Enter. |
 | Controls | `pad.c` | Runs once a frame after the game builds its pad (a patch in `run_lift.py`); `docs/controls.md`. |
 | Oracle | `oracle.c` | `--original` runs the shipping machine code under the same host, for comparison. |
 
@@ -34,7 +35,7 @@ The DLL comes from the user's install and is never redistributed.
 ```
 sote [--run] [--original [--lifted VA|LO-HI|!VA,...]] [--play]
      [--headless [--record out.mp4] [--frames N]] [--mute] [--game DIR]
-     [--pad MASK@T[+D]] [--stick X,Y@T[+D]] [--pad-log]
+     [--pad MASK@T[+D]] [--stick X,Y@T[+D]] [--pad-log] [--cmd NAME@T]
      [--watchdog S] [--native-trace] [--callbacks] [-- game args]
 ```
 

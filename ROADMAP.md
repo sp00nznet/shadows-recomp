@@ -32,10 +32,19 @@
 - The oracle (`oracle.c`) is now in three game repos; it belongs in
   `runtime/native32`.
 
+- **The F10 menu, borderless window and F11 on a real screen.** All of it is
+  checked headless through `--cmd`; the popup, the window placement and the
+  cursor have not been seen on a monitor yet.
+
 ## Later
 
-- Widescreen and higher resolutions (the launcher offers up to 1280x960 before
-  cinematics break).
+- The game's other name cheats: `Wampa Stompa` (`0x004CAD98`) and `Wolfy`
+  (`0x004CAD94`) change button tricks and characters; what each does is not
+  worked out yet, so they are not in the menu.
+- Draw distance: the debug menu's fog settings (`Fog Max`, `Fog Thick`) as a
+  graphics option, where the levels hold up without the fog.
+- The HUD and the front end at widescreen: the front end lays itself out for
+  the width; the HUD in each vehicle needs looking at.
 - Rogue Squadron 3D: same SteamStub, which the toolkit now removes, but a
   different engine (Factor 5's), so a separate project.
 

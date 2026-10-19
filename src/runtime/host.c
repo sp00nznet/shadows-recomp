@@ -22,6 +22,7 @@
 #include "recomp_trace.h"
 #include "display.h"
 #include "pad.h"
+#include "menu.h"
 #include "oracle.h"
 #include "recomp_target.h"   /* the binary this build runs: run_lift.py */
 
@@ -248,9 +249,11 @@ static void shim_hl_focus_query(void) {  /* GetActiveWindow, GetForegroundWindow
     g_esp += 4;
 }
 
-/* The game's window procedure sees every activation as "active": a hidden
- * window is never the foreground one, and a game that pauses on losing the
- * focus would otherwise freeze at a moment that depends on timing. */
+/* Every window class the game registers gets this procedure in front of its
+ * own. On a real screen it gives the F10 menu its keys. Headless, the game's
+ * procedure sees every activation as "active": a hidden window is never the
+ * foreground one, and a game that pauses on losing the focus would otherwise
+ * freeze at a moment that depends on timing. */
 #define MAX_CLASSES 8
 static struct { ATOM atom; uint32_t proc; } g_classes[MAX_CLASSES];
 static int g_nclasses;
@@ -258,9 +261,12 @@ static int g_nclasses;
 static LRESULT CALLBACK hl_wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
     ATOM atom = (ATOM)GetClassLongA(h, GCW_ATOM);
     uint32_t proc = 0;
+    LRESULT r;
     for (int i = 0; i < g_nclasses; i++)
         if (g_classes[i].atom == atom) proc = g_classes[i].proc;
-    if (m == WM_ACTIVATEAPP || m == WM_NCACTIVATE) w = TRUE;
+    if (!g_headless) {                       /* a real window: the F10 menu's keys first (menu.c) */
+        if (menu_wndproc(h, m, w, l, &r)) return r;
+    } else if (m == WM_ACTIVATEAPP || m == WM_NCACTIVATE) w = TRUE;
     else if (m == WM_ACTIVATE) w = MAKEWPARAM(WA_ACTIVE, HIWORD(w));
     else if (m == WM_KILLFOCUS) return 0;
     /* guest code: Windows' call faults on the non-executable page and
@@ -299,8 +305,40 @@ static native32_shim_t g_headless_shims[] = {
     { "GetActiveWindow", shim_hl_focus_query },
     { "GetForegroundWindow", shim_hl_focus_query },
     { "GetFocus", shim_hl_focus_query },
-    { "RegisterClassA", shim_hl_RegisterClassA },
 };
+
+/* On a real screen every DirectInput device is non-exclusive. An exclusive
+ * mouse hides the cursor from Windows and keeps its clicks, and the F10 menu
+ * needs both; the game reads the same relative motion either way. */
+#define DISCL_EXCLUSIVE_    0x1
+#define DISCL_NONEXCLUSIVE_ 0x2
+typedef HRESULT (WINAPI *dicoop_t)(void*, HWND, DWORD);
+typedef HRESULT (WINAPI *dimake_t)(void*, const GUID*, void**, void*);
+static dicoop_t g_real_dicoop;
+static dimake_t g_real_dimake;
+
+static void vt_patch(void** slot, void* fn, void** real) {
+    DWORD old;
+    if (*slot == fn || (*real && *real != *slot)) return;   /* one saved original: one vtable */
+    *real = *slot;
+    VirtualProtect(slot, sizeof *slot, PAGE_READWRITE, &old);
+    *slot = fn;
+    VirtualProtect(slot, sizeof *slot, old, &old);
+}
+
+static HRESULT WINAPI hl_di_SetCooperativeLevel(void* dev, HWND h, DWORD flags) {
+    DWORD asked = flags;
+    if (!g_headless && (flags & DISCL_EXCLUSIVE_)) flags = (flags & ~DISCL_EXCLUSIVE_) | DISCL_NONEXCLUSIVE_;
+    HRESULT hr = g_real_dicoop(dev, h, flags);
+    fprintf(stderr, "[input] SetCooperativeLevel(0x%lX -> 0x%lX) -> 0x%08lX\n", asked, flags, hr);
+    return hr;
+}
+
+static HRESULT WINAPI hl_di_CreateDevice(void* di, const GUID* g, void** out, void* outer) {
+    HRESULT hr = g_real_dimake(di, g, out, outer);
+    if (SUCCEEDED(hr) && *out) vt_patch(&(*(void***)*out)[13], (void*)hl_di_SetCooperativeLevel, (void**)&g_real_dicoop);
+    return hr;
+}
 
 /* DirectInputCreateA checks that hinst is a module the loader knows; the
  * guest's (0x00400000, mapped by native32) is not, and the game then used the
@@ -308,16 +346,18 @@ static native32_shim_t g_headless_shims[] = {
 static void shim_DirectInputCreateA(void) {
     typedef HRESULT (WINAPI *dic_t)(HINSTANCE, DWORD, void**, void*);
     static dic_t real;
+    void** out = (void**)(uintptr_t)ARG(2);
     if (!real) real = (dic_t)GetProcAddress(LoadLibraryA("dinput.dll"), "DirectInputCreateA");
-    HRESULT hr = real ? real(GetModuleHandleA(NULL), ARG(1), (void**)(uintptr_t)ARG(2), (void*)(uintptr_t)ARG(3))
-                      : E_FAIL;
+    HRESULT hr = real ? real(GetModuleHandleA(NULL), ARG(1), out, (void*)(uintptr_t)ARG(3)) : E_FAIL;
     fprintf(stderr, "[input] DirectInputCreateA(version 0x%X) -> 0x%08lX\n", ARG(1), hr);
+    if (SUCCEEDED(hr) && *out) vt_patch(&(*(void***)*out)[3], (void*)hl_di_CreateDevice, (void**)&g_real_dimake);
     g_eax = (uint32_t)hr;
     g_esp += 4 + 4 * 4;
 }
 
 static native32_shim_t g_shims[] = {
     { "DirectInputCreateA", shim_DirectInputCreateA },
+    { "RegisterClassA", shim_hl_RegisterClassA },
     { "GetModuleHandleA", shim_GetModuleHandleA },
     { "GetModuleFileNameA", shim_GetModuleFileNameA },
     { "GetCommandLineA", shim_GetCommandLineA },
@@ -492,6 +532,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         int n = recomp_trace_arg(argc, argv, i);
         if (!n) n = pad_arg(argc, argv, i);
+        if (!n) n = menu_arg(argc, argv, i);
         if (n) { i += n - 1; continue; }
         if (!strcmp(argv[i], "--run")) run = 1;
         else if (!strcmp(argv[i], "--headless")) g_headless = g_autoplay = 1;
@@ -507,7 +548,7 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--callbacks")) native32_trace_callbacks = 1;
         else {
             printf("usage: sote [--run] [--original] [--play] [--headless [--record out.mp4] [--frames N]] [--mute] [--game DIR]\n"
-                   "            [--pad MASK@T[+D]] [--stick X,Y@T[+D]] [--pad-log]\n"
+                   "            [--pad MASK@T[+D]] [--stick X,Y@T[+D]] [--pad-log] [--cmd NAME@T]\n"
                    "            [--watchdog S] [--native-trace] [--callbacks] [-- game args]\n");
             recomp_trace_help();
             return argv[i][1] == 'h' || argv[i][2] == 'h' ? 0 : 1;
@@ -549,8 +590,9 @@ int main(int argc, char** argv) {
     static native32_shim_t shims[sizeof g_headless_shims / sizeof g_headless_shims[0] +
                                  sizeof g_shims / sizeof g_shims[0]];
     int nshims = 0;
+    menu_init(g_headless);              /* sote.ini: what display_init's devices follow */
+    if (!display_init(sdata, g_headless, rec, rec_frames) && g_headless) return 1;
     if (g_headless) {
-        if (!display_headless(sdata, rec, rec_frames)) return 1;
         for (size_t k = 0; k < sizeof g_headless_shims / sizeof g_headless_shims[0]; k++)
             shims[nshims++] = g_headless_shims[k];
     }

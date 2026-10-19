@@ -29,7 +29,28 @@ renders its menus, cinematics and 3D, and the first level plays.**
 | Battle of Hoth (snowspeeder) | flies; steering, pause menu and its CONTROLS page work |
 | Controls layer | gamepad, mouse and menu keys work under scripted input; a real pad not yet tried |
 | Headless (`--headless --record`) | works |
-| Later levels, saving, music | not tried |
+| F10 menu: levels, cheats | every command works under `--cmd`; Echo Base, Mos Eisley, Gall Spaceport and the Sewers load and run; the popup itself not yet seen on a screen |
+| Widescreen, up to 4K | 1920x1080 checked: Hor+ 3D, centred cutscenes |
+| Borderless window, F11 | written; not yet seen on a screen |
+| Playing the later levels through, saving, music | not tried |
+
+## What's added on top
+
+The game runs as it shipped; everything here sits around it.
+
+- **New controls**: XInput gamepads with a linear stick, a mouse that steers
+  and aims by how it moves, every action on a sensible button
+  ([docs/controls.md](docs/controls.md)).
+- **An F10 menu** ([docs/menu.md](docs/menu.md)):
+  - *Level*: restart, next, previous, or jump to any of the game's levels.
+  - *Cheats*: invincibility, infinite lives, all weapons and items, and the
+    game's own hidden debug menu (also on the gamepad: click both sticks).
+  - *Graphics*: field of view, anisotropic filtering, vsync,
+    and resolutions up to 4K, 4:3 or widescreen.
+  - *Display*: borderless fullscreen (the default), a window (F11 switches),
+    or exclusive fullscreen as shipped.
+- **Widescreen**: at a wide resolution the 3D view widens (Hor+) instead of
+  stretching, and cutscenes are centred.
 
 ## Screenshots
 
@@ -37,6 +58,8 @@ From headless runs of the recompiled game.
 
 | | |
 |---|---|
+| ![Battle of Hoth at 1920x1080, Hor+](docs/screenshots/hoth-widescreen.png) | ![The Sewers at 1920x1080, jumped to from the front end](docs/screenshots/sewers-widescreen.png) |
+| ![A cutscene, centred at 1920x1080](docs/screenshots/cutscene-centred.png) | ![Escape from Echo Base after Next level, with the debug display](docs/screenshots/echo-base-jump.png) |
 | ![Echo Base attract demo](docs/screenshots/echo-base.png) | ![Star Destroyer](docs/screenshots/star-destroyer.png) |
 | ![Snowspeeder banking on the stick](docs/screenshots/speeder-bank.png) | ![The game's controls page](docs/screenshots/controls-page.png) |
 

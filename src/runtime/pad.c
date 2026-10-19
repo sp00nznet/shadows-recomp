@@ -35,6 +35,7 @@
 
 #include "recomp_types.h"
 #include "pad.h"
+#include "menu.h"
 
 #define PAD_STICK_X 0x008A5C60u
 #define PAD_STICK_Y 0x008A5C64u
@@ -312,6 +313,7 @@ void sote_keys_frame(void) {
 void sote_pad_frame(void) {
     float sx = MEMF(PAD_STICK_X), sy = MEMF(PAD_STICK_Y);
     uint32_t b = MEM32(PAD_BUTTONS), game_b = b;
+    int thumbs = 0;
     double t;
     if (!g_t0) g_t0 = now_s();
     t = now_s() - g_t0;
@@ -324,6 +326,7 @@ void sote_pad_frame(void) {
             if (g_xget(i, &st)) continue;
             const xpad_t* p = &st.pad;
             float lx, ly, rx = axis(p->rx), ry = axis(p->ry);
+            thumbs = (p->buttons & (XB_LTHUMB | XB_RTHUMB)) == (XB_LTHUMB | XB_RTHUMB);
             shape(axis(p->lx), axis(p->ly), &lx, &ly);
             if (lx || ly) sx = lx, sy = ly;      /* else the keys and mouse keep the stick */
             for (int k = 0; k < 16; k++)
@@ -375,6 +378,12 @@ void sote_pad_frame(void) {
         if (MEM32(0x006F0CE0) != demo) fprintf(stderr, "[pad] %.2fs demo playback %u\n", t, demo = MEM32(0x006F0CE0));
         if (MEM32(0x008A5C28) != state) fprintf(stderr, "[pad] %.2fs state %u\n", t, state = MEM32(0x008A5C28));
     }
+    {   /* both stick clicks: the game's own debug menu, which the pad can work */
+        static int was;
+        if (thumbs && !was) menu_game_debug_menu();
+        was = thumbs;
+    }
+    menu_pad_frame(&b);                  /* the F10 menu's command, if one is waiting (menu.c) */
     MEMF(PAD_STICK_X) = sx;
     MEMF(PAD_STICK_Y) = sy;
     MEM32(PAD_BUTTONS) = b;

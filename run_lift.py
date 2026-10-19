@@ -17,8 +17,10 @@ and the switch tables MSVC keeps in .text with it.
     py -3 run_lift.py --roots 0x004AE550 --max 20000
 """
 import argparse
+import filecmp
 import json
 import os
+import shutil
 import sys
 import time
 
@@ -58,6 +60,17 @@ PATCHES = {
     # keys straight from there (sub_0041EEC0: Enter), so the controls layer
     # adds the gamepad's menu keys here, before anything reads them.
     0x004A9494: '{ extern void sote_keys_frame(void); sote_keys_frame(); } /* controls: run_lift.py PATCHES */',
+    # sub_0044F570 (a scene change is asked for) has stored the scene at
+    # 0x006F0CEC: the F10 menu's level jump puts its own in (src/runtime/menu.c).
+    0x0044F5C4: '{ extern void sote_scene_request(void); sote_scene_request(); } /* menu: run_lift.py PATCHES */',
+    # sub_00414080 (the camera, each frame) has taken its caller's field of
+    # view and aspect (0x008D6304/08), before it uses them: the menu's field
+    # of view is applied here.
+    0x004140AA: '{ extern void sote_camera_frame(void); sote_camera_frame(); } /* menu: run_lift.py PATCHES */',
+    # sub_004706A0, the cutscene player's frame blit, has its surface in ebx.
+    # It scales 640x480 to the screen, but by 2x at most, from the top left:
+    # above 1280x960 the picture is moved to the middle.
+    0x004706BF: '{ extern uint32_t sote_movie_offset(void); ebx += sote_movie_offset(); } /* menu: run_lift.py PATCHES */',
 }
 
 # The Steam release's Shadows.exe (1997-12-12): its PE timestamp. Unwrapping
@@ -74,6 +87,25 @@ def apply_patches(body, patches):
             e = body.index('\n', k)
             body = body[:e + 1] + '    ' + c + '\n' + body[e + 1:]
     return body
+
+
+def sync_dir(src, dst):
+    """Move src's files over dst's where they differ, drop dst's others,
+    remove src. The number of files changed."""
+    os.makedirs(dst, exist_ok=True)
+    changed = 0
+    keep = set(os.listdir(src))
+    for fn in os.listdir(dst):
+        if fn not in keep and fn.startswith('recomp_'):
+            os.remove(os.path.join(dst, fn))
+    for fn in keep:
+        new, old = os.path.join(src, fn), os.path.join(dst, fn)
+        if os.path.exists(old) and filecmp.cmp(new, old, shallow=False):
+            continue
+        os.replace(new, old)
+        changed += 1
+    shutil.rmtree(src)
+    return changed
 
 
 def write_target_header(out, entry):
@@ -106,6 +138,12 @@ def main():
     ap.add_argument('--seeds', default=os.path.join(_HERE, 'work', 'run_seeds.json'),
                     help='seed_from_log.py JSON of unresolved targets from runs')
     args = ap.parse_args()
+    # Lifted into a scratch folder, then only the files that changed replace
+    # their old copies: an untouched file keeps its time, and a rebuild after
+    # a one-line patch compiles one file, not all of them.
+    final_out = args.out
+    args.out = final_out + '.new'
+    shutil.rmtree(args.out, ignore_errors=True)
     if not os.path.exists(args.catalog):
         sys.exit('no catalog at %s -- run disasm32.py first (README, Step by step)' % args.catalog)
 
@@ -252,10 +290,11 @@ def main():
              'no_terminator': dirty, 'files': idx, 'lines': lines}
     json.dump(stats, open(STATS, 'w'), indent=1)
     write_target_header(args.out, entry)
+    changed = sync_dir(args.out, final_out)
     print('=' * 60)
     print('  lifted %d   not-lifted stubs %d   errors %d   no terminator %d'
           % (len(chosen), len(stubs), errors, dirty))
-    print('  %s lines of C in %d files, %.1fs' % (format(lines, ','), idx, time.time() - t0))
+    print('  %s lines of C in %d files, %.1fs; %d changed' % (format(lines, ','), idx, time.time() - t0, changed))
     print('=' * 60)
 
 

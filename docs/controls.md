@@ -97,8 +97,9 @@ Input or DS4Windows, most others.
 In the front end (title, level select) A selects and B goes back. In a level
 the pause menu takes the D-pad and Start: every select key the menus accept is
 bound to something in play (Enter pauses; mouse button 1 and joystick button 1
-fire), so A cannot safely be one there. The game's state is at `0x008A5C28`:
-2 in the front end, 3 in a level, 0 in a cinematic.
+fire), so A cannot safely be one there. The scene running is at `0x008A5C28`:
+2 is the front end, the levels are 3 (Battle of Hoth) and up
+([menu.md](menu.md) has the list).
 
 ## Mouse
 

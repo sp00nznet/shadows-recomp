@@ -1,10 +1,14 @@
 #pragma once
 #include <stdint.h>
 
-/* Headless: hook Steam's Sdata\ddraw.dll so its Direct3D 9 devices are
- * windowed on the (invisible) game window; record each frame when `record`
- * is set, and exit after `frames` recorded frames (0: never). 1 on success. */
-int display_headless(const char* sdata, const char* record, long frames);
+/* Hook Steam's Sdata\ddraw.dll, which renders on Direct3D 9: its devices
+ * follow the F10 menu's display settings (menu.h), and headless ones are
+ * windowed on the invisible game window. With `record` set each frame is
+ * recorded, and the run exits after `frames` recorded frames (0: never).
+ * 1 on success. */
+int display_init(const char* sdata, int headless, const char* record, long frames);
+void display_place(void);          /* the game window as the settings say: borderless or a window */
 long display_frames(void);
+float display_aspect(void);        /* the back buffer's width / height, 0 before a device */
 long display_flat_percent(void);   /* SOTE_DRAW_LOG: 3D vertices on the middle row, -1 if none */
 void display_record_close(void);
