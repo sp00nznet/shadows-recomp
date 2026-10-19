@@ -1,0 +1,44 @@
+# Build output
+build/
+build-*/
+build-farm/
+out/
+cmake-build-*/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# IDE
+.vs/
+.vscode/
+*.user
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# --- Retail game files: NOT redistributed (REPO_RULES section 3) ---
+# Star Wars: Shadows of the Empire (c) 1997 LucasArts. Bring your own copy
+# (Steam); tools/setup.ps1 copies it into game/.
+game/
+*.exe
+*.EXE
+*.dll
+*.DLL
+*.zip
+
+# Generated from the binary, never committed: the lifted C, the catalog,
+# the toolkit worktree and every other analysis of Shadows.exe.
+src/recomp/gen/
+work/
+
+# Recordings and logs of runs
+*.mp4
+*.log
+
+# OS
+Thumbs.db
+Desktop.ini
