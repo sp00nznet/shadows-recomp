@@ -92,9 +92,18 @@ with C++", CMake 3.20+, Ninja, git.
 git clone https://github.com/sp00nznet/pcrecomp ..\tools
 ```
 
-The toolkit needs two changes this game brought (SteamStub 3.x, and the
-`fst st(i)` lift fix); until they are merged, use the
-`work/shadows-integration` branch. `Setup.cmd` checks for both.
+The toolkit needs two changes this game brought: SteamStub 3.x
+([pcrecomp#110](https://github.com/sp00nznet/pcrecomp/pull/110)) and the
+`fst st(i)` lift fix ([pcrecomp#111](https://github.com/sp00nznet/pcrecomp/pull/111)).
+Until they are merged, merge both branches into your checkout:
+
+```
+cd ..\tools
+git fetch origin
+git merge origin/feat/steamstub-v3 origin/fix/lift32-fst-st-reg
+```
+
+`Setup.cmd` checks for both.
 
 1. Copy your Steam install (the folder with `Sdata\Shadows.exe`) to `game\`.
 2. Remove SteamStub:
