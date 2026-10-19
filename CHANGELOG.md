@@ -5,6 +5,8 @@ versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-10-19
+
 ### Added
 - **The installer** (`Shadows-Recomp-Installer`): recomp-launcher with
   `launcher/launcher.json`, built by `.github/workflows/installer.yml` on
@@ -56,3 +58,6 @@ versions follow [SemVer](https://semver.org/).
 - `DirectInputCreateA` refused the guest's module handle; the host passes its own.
 - An injected key was never released (the poll does not clear the held table),
   which kept Start pressed in play.
+
+[Unreleased]: https://github.com/sp00nznet/shadows-recomp/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/sp00nznet/shadows-recomp/releases/tag/v0.1.0-alpha.1
