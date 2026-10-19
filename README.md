@@ -1,5 +1,7 @@
 # Shadows of the Empire — static recompilation
 
+![The Battle of Hoth, recompiled, at 1920x1080 widescreen: the snowspeeder banking under scripted stick input](docs/screenshots/hero.gif)
+
 The 1997 PC release of *Star Wars: Shadows of the Empire*, recompiled from its
 x86 machine code to C with [pcrecomp](https://github.com/sp00nznet/pcrecomp)
 and run on a 32-bit host, with a new controls layer: XInput gamepads with a
@@ -92,17 +94,9 @@ with C++", CMake 3.20+, Ninja, git.
 git clone https://github.com/sp00nznet/pcrecomp ..\tools
 ```
 
-The toolkit needs two changes this game brought: SteamStub 3.x
-([pcrecomp#110](https://github.com/sp00nznet/pcrecomp/pull/110)) and the
-`fst st(i)` lift fix ([pcrecomp#111](https://github.com/sp00nznet/pcrecomp/pull/111)).
-Until they are merged, merge both branches into your checkout:
-
-```
-cd ..\tools
-git fetch origin
-git merge origin/feat/steamstub-v3 origin/fix/lift32-fst-st-reg
-```
-
+The toolkit needs two changes this game brought, both on pcrecomp's `main`:
+SteamStub 3.x ([pcrecomp#110](https://github.com/sp00nznet/pcrecomp/pull/110))
+and the `fst st(i)` lift fix ([pcrecomp#111](https://github.com/sp00nznet/pcrecomp/pull/111)).
 `Setup.cmd` checks for both.
 
 1. Copy your Steam install (the folder with `Sdata\Shadows.exe`) to `game\`.
