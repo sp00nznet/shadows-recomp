@@ -1,0 +1,20 @@
+{
+  "title": "Star Wars: Shadows of the Empire",
+  "repo": "sp00nznet/shadows-recomp",
+  "accent": "#d9a521",
+  "note": {
+    "windows": "The first build takes 20 to 60 minutes and about 2 GB. Python, CMake, Ninja and the Visual Studio Build Tools (about 3 GB) are installed if they are missing; Windows asks for permission once.",
+    "default": "Shadows of the Empire builds on Windows only: it runs on Steam's own DirectDraw-to-Direct3D 9 wrapper. Use the Windows installer."
+  },
+  "game": {
+    "name": "Shadows of the Empire",
+    "files": ["Sdata/Shadows.exe"],
+    "steam": "Star Wars Shadows of the Empire",
+    "registry": ["HKLM\\SOFTWARE\\WOW6432Node\\LucasArts Entertainment Company\\Shadows of the Empire\\Install Path"]
+  },
+  "sources": [{ "repo": "sp00nznet/pcrecomp", "ref": "main", "dir": "pcrecomp" }],
+  "setup": {
+    "windows": ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "tools\\setup.ps1", "-Yes", "-Game", "{game}"]
+  },
+  "play": "* (recomp).cmd"
+}

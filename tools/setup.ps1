@@ -7,15 +7,23 @@
 # from Shadows.exe, writes the game's settings to HKCU, builds the function
 # catalog, lifts it to C, builds the 32-bit host and leaves a shortcut. Each
 # step is skipped when its output already exists (-Force redoes them).
-# -Game takes the install folder. Everything it does goes to setup.log.
-param([switch]$Force, [string]$Game = "")
+# -Game takes the install folder; -Yes answers every question yes and never
+# waits for input (the installer, recomp-launcher, runs it so, with
+# RECOMP_LAUNCHER set, which also skips the "Press Enter" at the end).
+# Everything it does goes to setup.log.
+param([switch]$Force, [switch]$Yes, [string]$Game = "")
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
-# The toolkit: this checkout's own worktree when there is one, else a sibling
-# ..\tools (where a fresh setup clones it). run_lift.py and CMakeLists.txt look
-# in the same two places.
-$Toolkit = if (Test-Path (Join-Path $Root 'work\pcrecomp\runtime')) { Join-Path $Root 'work\pcrecomp' } else { Join-Path (Split-Path -Parent $Root) 'tools' }
+$Parent = Split-Path -Parent $Root
+# The toolkit: PCRECOMP; else this checkout's own worktree; else a sibling
+# ..\pcrecomp (where the installer puts it) or ..\tools; else ..\pcrecomp is
+# cloned. It is handed to run_lift.py and CMake explicitly.
+$Toolkit = if ($env:PCRECOMP) { $env:PCRECOMP }
+  elseif (Test-Path (Join-Path $Root 'work\pcrecomp\runtime')) { Join-Path $Root 'work\pcrecomp' }
+  elseif (Test-Path (Join-Path $Parent 'pcrecomp\runtime')) { Join-Path $Parent 'pcrecomp' }
+  elseif (Test-Path (Join-Path $Parent 'tools\runtime\native32')) { Join-Path $Parent 'tools' }
+  else { Join-Path $Parent 'pcrecomp' }
 $T = Join-Path $Toolkit 'tools'
 $Log = Join-Path $Root 'setup.log'
 Set-Location $Root
@@ -25,12 +33,13 @@ Log "==== setup $(Get-Date -Format s)"
 
 function Say($t, $c = 'Gray') { Write-Host $t -ForegroundColor $c; Log $t }
 function Step($n, $t) { Write-Host ""; Say "[$n/$Steps] $t" 'Cyan' }
+function Pause-End { if (-not $env:RECOMP_LAUNCHER) { Read-Host "Press Enter to close" | Out-Null } }
 function Fail($t) {
   Say "" ; Say "Setup stopped: $t" 'Red'
   Say "The details are in $Log. Fix that and run Setup.cmd again; finished steps are skipped." 'Yellow'
-  Read-Host "Press Enter to close" | Out-Null; exit 1
+  Pause-End; exit 1
 }
-function Ask($q) { $a = Read-Host "$q [Y/n]"; return -not ($a -match '^[nN]') }   # Enter = yes
+function Ask($q) { if ($Yes) { Say "$q yes"; return $true }; $a = Read-Host "$q [Y/n]"; return -not ($a -match '^[nN]') }   # Enter = yes
 function Refresh-Path {
   $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
@@ -113,7 +122,19 @@ Say "  pcrecomp: $Toolkit"
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $vs = if (Test-Path $vswhere) { (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath) } else { $null }
-if (-not $vs) { Fail "Visual Studio 2022 (or its Build Tools) with 'Desktop development with C++' is needed. Install it, then run Setup.cmd again." }
+if (-not $vs) {
+  Say "  Visual Studio 2022 with the C++ tools is not installed."
+  if (-not (Ask "  Install the Visual Studio 2022 Build Tools with the C++ workload now (winget, about 3 GB, asks for admin)?")) {
+    Fail "Visual Studio 2022 (or its Build Tools) with 'Desktop development with C++' is needed. Install it, then run Setup.cmd again."
+  }
+  if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Fail "winget is missing. Install 'App Installer' from the Microsoft Store, or the Visual Studio Build Tools yourself."
+  }
+  Exec @('winget', 'install', '-e', '--id', 'Microsoft.VisualStudio.2022.BuildTools', '--accept-package-agreements', '--accept-source-agreements',
+         '--override', '--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended') | Out-Null
+  $vs = if (Test-Path $vswhere) { (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath) } else { $null }
+  if (-not $vs) { Fail "the Visual Studio Build Tools did not install. Install them with 'Desktop development with C++', then run Setup.cmd again." }
+}
 Say "  Visual Studio: $vs"
 foreach ($tool in @(@('cmake', 'Kitware.CMake', '30 MB'), @('ninja', 'Ninja-build.Ninja', '1 MB'))) {
   if (Get-Command $tool[0] -ErrorAction SilentlyContinue) { continue }
@@ -147,6 +168,7 @@ if ((Is-Install 'game') -and -not $Force) {
 } else {
   $Game = $Game.Trim('"', ' ')
   if (-not (Is-Install $Game)) { $Game = Find-Steam; if ($Game) { Say "  Found your Steam install: $Game" } }
+  if (-not (Is-Install $Game) -and $Yes) { Fail "Shadows of the Empire was not found in your Steam libraries. Give its folder with -Game." }
   while (-not (Is-Install $Game)) {
     $Game = (Read-Host "  Paste the folder Shadows of the Empire is installed in (the one with Sdata\Shadows.exe)").Trim('"', ' ')
     if (-not (Is-Install $Game)) { Say "  That folder has no Sdata\Shadows.exe." 'Yellow' }
@@ -213,4 +235,4 @@ Say "  $lnk"
 
 Write-Host ""
 Say "Done. Double-click 'Shadows of the Empire (recomp).cmd' to play." 'Green'
-Read-Host "Press Enter to close" | Out-Null
+Pause-End

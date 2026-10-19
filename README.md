@@ -70,6 +70,17 @@ From headless runs of the recompiled game.
 You need *Star Wars: Shadows of the Empire* from Steam, installed (Steam app
 560170), about 2 GB free, and Windows 10 or 11.
 
+### The installer
+
+Download `Shadows-Recomp-Installer-windows-x64.exe` from the
+[releases](https://github.com/sp00nznet/shadows-recomp/releases) (or, between
+releases, the latest [installer run](https://github.com/sp00nznet/shadows-recomp/actions/workflows/installer.yml)'s
+artifacts) and run it. It finds the game in your Steam library, downloads this
+repo and pcrecomp, runs the setup below with a progress bar, and leaves a Play
+button. It is [recomp-launcher](https://github.com/sp00nznet/recomp-launcher)
+with [`launcher/launcher.json`](launcher/launcher.json). It isn't signed:
+Windows SmartScreen asks first (**More info**, **Run anyway**).
+
 ### Quick start
 
 1. Download this repo (Code > Download ZIP) and unpack it anywhere.

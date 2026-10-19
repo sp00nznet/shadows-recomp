@@ -6,6 +6,12 @@ versions follow [SemVer](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **The installer** (`Shadows-Recomp-Installer`): recomp-launcher with
+  `launcher/launcher.json`, built by `.github/workflows/installer.yml` on
+  every push (artifacts) and `v*` tag (release files). `tools/setup.ps1` takes
+  `-Yes` (no questions, installs the Visual Studio Build Tools if missing),
+  skips its final "Press Enter" under `RECOMP_LAUNCHER`, and finds the toolkit
+  at `PCRECOMP` or `..\pcrecomp` too.
 - The F10 menu (`src/runtime/menu.c`, `docs/menu.md`): level restart, next,
   previous and jump to any level; invincibility, infinite lives, 50 lives,
   all weapons and items, Kill Dash, Teleport, the debug display and the
