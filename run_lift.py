@@ -53,6 +53,11 @@ PATCHES = {
     # here the frame's stick and buttons are final, and the controls layer
     # (src/runtime/pad.c) adjusts them before anything reads them.
     0x0044F45B: '{ extern void sote_pad_frame(void); sote_pad_frame(); } /* controls: run_lift.py PATCHES */',
+    # sub_004A93F0 has just read the keyboard, joysticks and mouse into the
+    # channel tables (held at 0x00810378, presses at 0x0080EE88). Menus read
+    # keys straight from there (sub_0041EEC0: Enter), so the controls layer
+    # adds the gamepad's menu keys here, before anything reads them.
+    0x004A9494: '{ extern void sote_keys_frame(void); sote_keys_frame(); } /* controls: run_lift.py PATCHES */',
 }
 
 # The Steam release's Shadows.exe (1997-12-12): its PE timestamp. Unwrapping
