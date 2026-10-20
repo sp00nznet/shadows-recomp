@@ -5,7 +5,7 @@ fix.
 
 ## What helps most
 
-- **A report with a log.** Run `build\rogue.exe --run --watchdog 120 2> run.log`
+- **A report with a log.** Run `build\sote.exe --run --watchdog 120 2> run.log`
   and attach `run.log`; say what was on screen and what you pressed.
 - **A headless reproduction** if you can make one: `--headless --record r.mp4`
   with `--key`, `--mouse` and `--click` (docs/host.md) shows the problem
