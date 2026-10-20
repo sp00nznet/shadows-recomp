@@ -334,8 +334,8 @@ static void show(HWND h) {
     /* the key or click that chose stays down for a moment: the game would
      * read it as its own (Enter pauses) */
     for (DWORD t0 = GetTickCount(); GetTickCount() - t0 < 500;) {
-        if (!(GetAsyncKeyState(VK_RETURN) | GetAsyncKeyState(VK_LBUTTON) | GetAsyncKeyState(VK_RBUTTON) |
-              GetAsyncKeyState(VK_ESCAPE) | GetAsyncKeyState(VK_SPACE)) & 0x8000) break;
+        if (!((GetAsyncKeyState(VK_RETURN) | GetAsyncKeyState(VK_LBUTTON) | GetAsyncKeyState(VK_RBUTTON) |
+               GetAsyncKeyState(VK_ESCAPE) | GetAsyncKeyState(VK_SPACE)) & 0x8000)) break;
         Sleep(10);
     }
     run(cmd);
