@@ -74,6 +74,63 @@ DirectX 5) after zeroing the device tables at `0x0080F968`, `0x00810378`,
 `0x008D6AD0` and `0x0080F898`; `sub_0041C830` calls it and then walks the
 joysticks found (0x90-byte records at `0x008D6AD0`).
 
+## CD release
+
+Asked for in issue #1. Measured 2026-10-27.
+
+**v1.0 (the 1997 CD, September 1997): not examined.** The CD image on
+archive.org (`star-wars-shadows-of-the-empire-us-1997-win`) was not
+downloaded: we own the Steam copy, not the CD, so legal blocked it. Its
+timestamp, entry point and `.text` are unknown.
+
+**v1.1 (the official LucasArts update, posted 2/98): the same build as
+Steam's.** `Shadowsp.exe` (1,832,670 bytes, SHA-256 `d45804cb...7b27a0`),
+from Archive Team's 2013 grab of LucasArts' own FTP site (archive.org
+`ftp.lucasarts.com-20130427`, `patches/pc/Shadowsp.exe`). It is a self-extracting zip
+holding `SHADOWS.EXE`, `SHADOWFF.DLL` and docs. The patch's readme says to copy
+`Shadows.exe` into `SDATA\`.
+
+| | Steam, SteamStub removed | 1.1 patch `SHADOWS.EXE` |
+|---|---|---|
+| PE timestamp | `0x34909499` | `0x34909499` |
+| Entry point | `0x004AE550` | `0x004AE550` (no DRM: no `.bind`, a plain MSVC entry) |
+| Sections | `.text` `.rdata` `.data` `.idata` `.rsrc` `.reloc`, same RVAs and sizes | same |
+| Imports | `WIN32.dll` (7), `DDRAW.dll` (2), ... | `WINMM.dll` (7), `DDRAW.dll` (2), ... |
+| `.text` | | 27 bytes differ, in 7 places |
+
+Those 27 bytes are Steam's own changes to 1.1:
+
+| VA | 1.1 | Steam |
+|---|---|---|
+| `0x004127D2` | three calls on a dialog item | a different pair of calls (`0x3F9`, then `[0x8DE428]`) |
+| `0x00464D02` | `call sub_0043D380` | nops |
+| `0x00464DFC` | `jne`: stop if sound setup (`sub_0046F070`) failed | `jmp` |
+| `0x00464E06` | `call sub_00491540`, the CD check | `call sub_004A6620` |
+| `0x0046F878` | `je` | `jmp` |
+| `0x004915E5` | `jne`: "Unknown error" and quit unless a drive is labeled `SHADOWS` | `jmp` |
+| `0x004A8967` | `cmp eax, 0x40` | `cmp eax, 0x7F` (a bigger table) |
+
+`.rdata` also differs in two float constants: 640/480 (1.1) against
+720/560 (Steam) at `0x004C1A52`, and one at `0x004C4D48`. `.rsrc` differs too.
+
+**The pipeline takes the 1.1 exe as it is.** `disasm32.py` finds the same 2,806
+functions. `run_lift.py --all` lifts them with 0 errors, all six lift patches
+apply, and the C differs from the Steam lift in 75 lines, at the places above.
+Every hardcoded VA in `src/runtime` is the same. `tools/setup.ps1` used to
+fail on it (steamstub: "not a SteamStub stub"). It now takes an exe with no
+`.bind` as it is.
+
+**What is not known yet:**
+- **The display.** A CD install has no `Sdata\ddraw.dll`, Steam's Direct3D 9
+  wrapper (docs/host.md, "Why the Steam wrapper"). Without it, the game binds the
+  system DirectDraw and asks for a DirectX 5 HAL. `--headless` and the F10
+  display settings hook only that wrapper. Nobody has tried a 1.1 lift
+  against system DirectDraw or another DirectDraw wrapper.
+- **The disc.** 1.1 keeps the CD check: a drive labeled `SHADOWS` must be
+  there. It also plays music from the disc through the real `winmm`. A CD owner has both. We
+  have neither, so no CD install has been run.
+- **v1.0** without the patch: a different build until measured.
+
 ## Rogue Squadron 3D (Steam app 455910)
 
 Same SteamStub 3.x (`Rogue Squadron.EXE` unwraps with the same tool, OEP

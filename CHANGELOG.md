@@ -5,6 +5,14 @@ versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `tools/setup.ps1` takes a `Shadows.exe` that has no SteamStub as it is,
+  instead of failing in steamstub. The official 1.1 patch's exe for the CD
+  release is the same build as Steam's (PE timestamp `0x34909499`, same entry
+  point). It lifts with 0 errors, and every hardcoded address carries over
+  (docs/RECON.md, "CD release"). A CD install has not run yet: it has no Steam
+  `ddraw.dll`, and the CD check wants the disc. CD support is not claimed.
+
 ## [0.1.0-alpha.1] - 2026-10-19
 
 ### Added

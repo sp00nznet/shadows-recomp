@@ -74,7 +74,8 @@ PATCHES = {
 }
 
 # The Steam release's Shadows.exe (1997-12-12): its PE timestamp. Unwrapping
-# keeps it, so it names the build either way.
+# keeps it, so it names the build either way. The official 1.1 patch's exe
+# (for the CD release) is the same build (docs/RECON.md, "CD release").
 EXE_STAMP = 0x34909499
 
 

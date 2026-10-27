@@ -179,8 +179,18 @@ if ((Is-Install 'game') -and -not $Force) {
 }
 
 Step 3 "Removing SteamStub from Shadows.exe (seconds)"
-if ((Test-Path 'game\Sdata\Shadows.unwrapped.exe') -and -not $Force) { Say "  Already done (skipping)." }
-else { Run "Unwrapping" ($pyargs + @("$T\drm\steamstub.py", 'game\Sdata\Shadows.exe', 'game\Sdata\Shadows.unwrapped.exe')) }
+if (-not (Test-Path 'game\Sdata\Shadows.unwrapped.exe') -or $Force) {
+  # The official 1.1 patch's Shadows.exe (a CD install) is the same build
+  # without SteamStub: no .bind section to remove (docs/RECON.md, "CD release").
+  $fs = [IO.File]::OpenRead((Join-Path $Root 'game\Sdata\Shadows.exe')); $head = New-Object byte[] 4096
+  [void]$fs.Read($head, 0, 4096); $fs.Close()
+  if ([Text.Encoding]::ASCII.GetString($head).Contains('.bind')) {
+    Run "Unwrapping" ($pyargs + @("$T\drm\steamstub.py", 'game\Sdata\Shadows.exe', 'game\Sdata\Shadows.unwrapped.exe'))
+  } else {
+    Say "  No SteamStub (not the Steam release): used as it is."
+    Copy-Item -Force 'game\Sdata\Shadows.exe' 'game\Sdata\Shadows.unwrapped.exe'
+  }
+} else { Say "  Already done (skipping)." }
 
 Step 4 "Writing the game's settings (HKCU, no administrator needed)"
 # The values Steam's Install.bat and installScript.vdf put in HKLM, pointing at

@@ -579,8 +579,8 @@ int main(int argc, char** argv) {
     /* The lifted C is one build's: another exe crashes in game. */
     if (pe_field(exe_full, 0) != SOTE_EXE_STAMP ||
         SOTE_IMAGE_BASE + pe_field(exe_full, 1) != SOTE_EXE_ENTRY) {
-        fprintf(stderr, "%s is not the unwrapped Steam Shadows.exe this host was lifted from "
-                "(README, Getting Started: tools\\setup.ps1 makes it).\n", exe_full);
+        fprintf(stderr, "%s is not the build this host was lifted from (the Steam release unwrapped, "
+                "or the 1.1 patch's) (README, Getting Started: tools\\setup.ps1 makes it).\n", exe_full);
         return 1;
     }
     uint32_t span = native32_map(exe_full, SOTE_IMAGE_BASE);
