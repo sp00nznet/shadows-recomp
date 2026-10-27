@@ -5,6 +5,8 @@ versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-27
+
 ### Changed
 - `tools/setup.ps1` takes a `Shadows.exe` that has no SteamStub as it is,
   instead of failing in steamstub. The official 1.1 patch's exe for the CD
@@ -12,6 +14,12 @@ versions follow [SemVer](https://semver.org/).
   point). It lifts with 0 errors, and every hardcoded address carries over
   (docs/RECON.md, "CD release"). A CD install has not run yet: it has no Steam
   `ddraw.dll`, and the CD check wants the disc. CD support is not claimed.
+- `LICENSE` is plain MIT (the notice named another project).
+- `CONTRIBUTING.md`.
+
+### Fixed
+- The F10 menu's wait for the choosing key to come up ended at once, by
+  accident of precedence (`src/runtime/menu.c`).
 
 ## [0.1.0-alpha.1] - 2026-10-19
 

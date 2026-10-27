@@ -22,7 +22,7 @@ This is part of the pcrecomp family and follows its shared house style
 
 ## Status
 
-**v0.1.0-alpha.1. The whole game lifts (2,806 functions, 0 errors), boots,
+**v0.1.0. The whole game lifts (2,806 functions, 0 errors), boots,
 renders its menus, cinematics and 3D, and the first level plays.**
 
 | Part | State |
