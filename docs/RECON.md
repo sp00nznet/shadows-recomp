@@ -76,12 +76,32 @@ joysticks found (0x90-byte records at `0x008D6AD0`).
 
 ## CD release
 
-Asked for in issue #1. Measured 2026-10-27.
+Asked for in issue #1. Measured 2026-10-27; the CD itself the same night.
 
-**v1.0 (the 1997 CD, September 1997): not examined.** The CD image on
-archive.org (`star-wars-shadows-of-the-empire-us-1997-win`) was not
-downloaded: we own the Steam copy, not the CD, so legal blocked it. Its
-timestamp, entry point and `.text` are unknown.
+**v1.0 (the 1997 CD as it shipped): a different build, which this lift cannot use.**
+Measured 2026-10-27 from the archive.org DiscImageCreator dump
+(`star-wars-shadows-of-the-empire-us-1997-win`, `CD_DIC.rar`, md5
+`3b572aac813b34ba32013983476e4073`; owner's test copy, factory#17 option C).
+The data track (track 1 of 14; 2 to 14 are the music) converts to an ISO whose
+volume label is `SHADOWS`. `SDATA\SHADOWS.EXE` is 3,646,464 bytes.
+
+| | v1.0 (CD) | 1.1 patch / Steam |
+|---|---|---|
+| PE timestamp | `0x33F35193` (1997-08-14) | `0x34909499` |
+| Entry point | `0x004AAAC0` | `0x004AE550` |
+| `.text` | `0x1000`, vsize `0xB4CAE` | `0x1000`, vsize `0xB701E` |
+| `.rdata` / `.data` / `.idata` | `0x4B6000` / `0x4CB000` / `0x8C4000` | `0x4B9000` / `0x4CA000` / `0x8DE000` |
+| Functions (`disasm32.py`) | 2,765 | 2,806 |
+
+The `.text` is a different link, not a patch on 1.1: 710,968 of its 740,864
+bytes differ from 1.1 at the same offset. Code moved, so no address carries
+over. None of the five lift patches in `run_lift.py` (`0x0044F45B`,
+`0x004A9494`, `0x0044F5C4`, `0x004140AA`, `0x004706BF`) is at the same code in
+v1.0. `.data` is laid out differently too, so the data addresses in
+`src/runtime` can't be assumed either (not checked one by one). The disc check is there
+(1.1's `sub_00491540` is v1.0's `0x0048FE50`, same first bytes). `run_lift.py`
+refuses v1.0 on its timestamp. `tools/setup.ps1` now stops at step 3 and asks
+for the 1.1 patch.
 
 **v1.1 (the official LucasArts update, posted 2/98): the same build as
 Steam's.** `Shadowsp.exe` (1,832,670 bytes, SHA-256 `d45804cb...7b27a0`),
@@ -120,16 +140,26 @@ Every hardcoded VA in `src/runtime` is the same. `tools/setup.ps1` used to
 fail on it (steamstub: "not a SteamStub stub"). It now takes an exe with no
 `.bind` as it is.
 
-**What is not known yet:**
-- **The display.** A CD install has no `Sdata\ddraw.dll`, Steam's Direct3D 9
-  wrapper (docs/host.md, "Why the Steam wrapper"). Without it, the game binds the
-  system DirectDraw and asks for a DirectX 5 HAL. `--headless` and the F10
-  display settings hook only that wrapper. Nobody has tried a 1.1 lift
-  against system DirectDraw or another DirectDraw wrapper.
-- **The disc.** 1.1 keeps the CD check: a drive labeled `SHADOWS` must be
-  there. It also plays music from the disc through the real `winmm`. A CD owner has both. We
-  have neither, so no CD install has been run.
-- **v1.0** without the patch: a different build until measured.
+**A CD install, run 2026-10-27.** The image and everything made from it stay on
+the workstation, in `F:\scratch\sote-cd\` (never in git, an installer or a
+torrent): `CD_DIC.rar`, `img\` (the dump), `SHADOWS.iso` (the data track),
+`v10\SHADOWS.EXE`, and two installs, `install-v10\` and `install-v11\` (the
+disc's `SDATA\` and `INSTALL\` copied, the same as a full install;
+`install-v11\Sdata` has the 1.1 patch's `SHADOWS.EXE` and `SHADOWFF.DLL`). The
+disc's InstallShield setup was not run.
+
+| Check | Result |
+|---|---|
+| `Setup.cmd -Game install-v10 -Yes` | Stops at step 3: "not version 1.1 ... needs the official 1.1 patch". |
+| `Setup.cmd -Game install-v11 -Yes` | Steps 2 and 3 pass ("No SteamStub (not the Steam release): used as it is"). 2,806 functions, 2,806 lifted, 0 errors, and the lift patches land at all six sites, as in the Steam lift. The build completes (`build\sote.exe`, about 40 minutes on the workstation). |
+| The disc check | **Passes** with the ISO mounted (Windows keeps the label `SHADOWS`). Unmounted, the game stops: "Please insert the Shadows of the Empire CD into your CD Rom Drive." |
+| The launcher dialogs | Come up. The 3D device list has only "Microsoft Direct3D Mono(Ramp) Software Emulation". |
+| System DirectDraw (no `Sdata\ddraw.dll`) | **Fails.** After Play and Continue the game stops: "Unable to continue Error: Unable to initialize video card for 3D." No frame of the game is drawn, so no level select or Hoth. |
+| CD audio | **Fails** on a mounted ISO. The ISO holds only the data track: the MCI `cdaudio` device sees 1 track, and track 2 is out of range (error 282). Music needs the real disc, or a virtual drive that mounts the `.cue` with its audio tracks. Not reached in game anyway, because the display fails first. |
+
+So a CD owner gets as far as the launcher and then the 3D error. The missing
+piece is the display: a DirectDraw/Direct3D layer that does not depend on
+Steam's wrapper (Doublehash/factory#17, option D).
 
 ## Rogue Squadron 3D (Steam app 455910)
 

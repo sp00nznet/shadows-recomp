@@ -68,7 +68,7 @@ function Winget-Install($id) {
 
 Clear-Host
 Say "Star Wars: Shadows of the Empire - static recompilation setup" 'White'
-Say "You need your copy of Shadows of the Empire from Steam (installed) and about 2 GB free."
+Say "You need your copy of Shadows of the Empire installed (Steam, or the CD with the 1.1 patch) and about 2 GB free."
 Say "The function catalog, the lift and the build take 20 to 60 minutes, once."
 
 # ---------------------------------------------------------------- tools
@@ -184,6 +184,11 @@ if (-not (Test-Path 'game\Sdata\Shadows.unwrapped.exe') -or $Force) {
   # without SteamStub: no .bind section to remove (docs/RECON.md, "CD release").
   $fs = [IO.File]::OpenRead((Join-Path $Root 'game\Sdata\Shadows.exe')); $head = New-Object byte[] 4096
   [void]$fs.Read($head, 0, 4096); $fs.Close()
+  # v1.0, the CD as it shipped, is an older build (stamp 0x33F35193): none of
+  # the lift's addresses fit it. The 1.1 patch replaces Shadows.exe.
+  if ([BitConverter]::ToUInt32($head, [BitConverter]::ToInt32($head, 0x3C) + 8) -ne 0x34909499) {
+    Fail "game\Sdata\Shadows.exe is not version 1.1. A CD install needs the official 1.1 patch (Shadowsp.exe): put its Shadows.exe in Sdata\, then run Setup.cmd -Force."
+  }
   if ([Text.Encoding]::ASCII.GetString($head).Contains('.bind')) {
     Run "Unwrapping" ($pyargs + @("$T\drm\steamstub.py", 'game\Sdata\Shadows.exe', 'game\Sdata\Shadows.unwrapped.exe'))
   } else {

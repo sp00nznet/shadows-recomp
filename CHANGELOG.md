@@ -12,6 +12,17 @@ versions follow [SemVer](https://semver.org/).
   point). It lifts with 0 errors, and every hardcoded address carries over
   (docs/RECON.md, "CD release"). A CD install has not run yet: it has no Steam
   `ddraw.dll`, and the CD check wants the disc. CD support is not claimed.
+- `tools/setup.ps1` stops at step 3 when `Shadows.exe` is not version 1.1
+  (the CD's v1.0 is a different build, none of whose addresses fit the lift)
+  and asks for the official 1.1 patch, instead of failing at the lift. Its
+  opening line names the CD with the patch alongside Steam.
+
+### Tested
+- A CD install, from the owner's test copy of the disc (docs/RECON.md, "CD
+  release"). With the 1.1 patch, Setup lifts it (2,806 functions, 0 errors)
+  and builds. The disc check passes with the image mounted. The game then
+  stops with "Unable to initialize video card for 3D" on system DirectDraw,
+  so CD installs still don't play.
 
 ## [0.1.0-alpha.1] - 2026-10-19
 
